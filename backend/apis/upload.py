@@ -44,16 +44,3 @@ async def upload_files(files: List[UploadFile], dialogId: int, user: Dict[str, A
     messages.append(Query(role="assistant", content="All files have been uploaded successfully! Ask questions about them").serialize())
     DialogRecord.update_record(dialogId, json.dumps(messages, ensure_ascii=False), file_path=save_dir)
     return {"dialogId": str(dialogId), "file_path": save_dir, "record_name": record_name}
-
-
-@upload_api.post("/upload_test/{dialogId}")
-async def upload_test(files: List[UploadFile], dialogId: int, user: Dict[str, Any] = Depends(get_current_user)):
-    logger.debug(files)
-    logger.debug(type(files))
-    logger.debug(dialogId)
-    logger.debug(type(dialogId))
-    record = DialogRecord.get_record_by_id(dialogId)
-    messages = json.loads(record.dialog_content)
-    logger.debug(messages)
-    logger.debug(type(messages))
-    return "success"

@@ -62,23 +62,6 @@ def langchain_streamer(input_data: InputData,user_name:str) -> Generator[str, An
         yield "服务器太忙，请重试"
 
 
-def vue_test(input_data: InputData, user_name:str) -> Generator[str, Any, None]:
-    '''for vue test. this method return the user input without using LLM'''
-    time.sleep(3)
-    request_messages = input_data.query
-    try:
-        whole_response:str = ""
-        for token in request_messages[-1].content:
-            whole_response += token
-            yield f"{token}"
-        logger.info("The whole response is %s", whole_response)
-        request_messages.append(Query(role="assistant", content=whole_response))
-        yield update_dialog(input_data.dialogId, user_name, request_messages)
-    except Exception as e:
-        logger.exception(f"出错: {e}")
-        yield "服务器太忙，请重试"
-
-
 def update_dialog(dialog_id: str, user_name: str, whole_messages: List[Query]) -> str:
     '''
     if create a new dialog, return f"dialogIdComplexSubfix82jjivmpq90doqjwdoiwq:{str(dialog_record.id)}"
@@ -98,7 +81,5 @@ def update_dialog(dialog_id: str, user_name: str, whole_messages: List[Query]) -
 async def process_data_sse(input_data: InputData, user: Dict[str, Any] = Depends(get_current_user)):
     # use Server-Sent Events to send data to client
     logger.debug("input_data: %s", input_data)
-    # response_generator = langchain_streamer(input_data,user['sub'])
-    # for vue test
-    response_generator = vue_test(input_data,user['sub'])
+    response_generator = langchain_streamer(input_data,user['sub'])
     return EventSourceResponse(response_generator)
