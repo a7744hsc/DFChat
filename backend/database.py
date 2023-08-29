@@ -1,9 +1,14 @@
 from typing import List
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import relationship, joinedload,subqueryload
+import shutil
+import logging
+from config import RECORD_NAME_MAX_LEN
+
+logger = logging.getLogger(__name__)
 
 # 创建SQLite数据库引擎和会话工厂
 engine = create_engine("sqlite:///mydb.db", pool_size=20, max_overflow=0)
@@ -45,6 +50,8 @@ class DialogRecord(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User", back_populates="dialogs")
     dialog_content = Column(Text)
+    file_path = Column(Text)
+    record_name = Column(String(RECORD_NAME_MAX_LEN))
 
     @staticmethod
     def get_record_by_id(session_id: int) -> "DialogRecord":
@@ -61,9 +68,11 @@ class DialogRecord(Base):
         return user.dialogs
     
     @staticmethod
-    def create_record(user_id: int, dialog_content: str):
+    def create_record(user_id: int, dialog_content: str, record_name: str, file_path: str | None = None):
         session = SessionLocal()
-        dialog = DialogRecord(user_id=user_id, dialog_content=dialog_content)
+        # length limit
+        record_name = record_name[:RECORD_NAME_MAX_LEN]
+        dialog = DialogRecord(user_id=user_id, dialog_content=dialog_content, file_path=file_path, record_name=record_name)
         session.add(dialog)
         session.commit()
         session.refresh(dialog)
@@ -71,23 +80,44 @@ class DialogRecord(Base):
         return dialog
     
     @staticmethod
-    def update_record(session_id: int, dialog_content: str):
+    def update_record(session_id: int, dialog_content: str, file_path: str | None = None, record_name: str | None = None):
         session = SessionLocal()
         record = session.query(DialogRecord).filter(DialogRecord.id == session_id).first()
-        if record:
-            record.dialog_content = dialog_content
-            session.commit()
-            session.refresh(record)
-        else:
+        if not record:
             session.close()
             raise Exception("Record not found")
+        
+        record.dialog_content = dialog_content
+        if file_path:
+            record.file_path = file_path
+        if record_name:
+            record.record_name = record_name
+        session.commit()
+        session.refresh(record)   
         session.close()
         return record
     
     @staticmethod
+    def update_record_name(session_id: int, record_name: str):
+        session = SessionLocal()
+        record = session.query(DialogRecord).filter(DialogRecord.id == session_id).first()
+        record.record_name = record_name[:RECORD_NAME_MAX_LEN]
+        session.commit()
+        session.refresh(record)   
+        session.close()
+        return True
+
+    @staticmethod
     def delete_by_id(session_id: int):
         session = SessionLocal()
         session_obj = session.query(DialogRecord).filter(DialogRecord.id == session_id).first()
+        # delete all files related to this session
+        file_dir = session_obj.file_path
+        if file_dir:
+            try:
+                shutil.rmtree(file_dir)
+            except Exception as e:
+                logger.exception(e)
         if session_obj:
             session.delete(session_obj)
             session.commit()
