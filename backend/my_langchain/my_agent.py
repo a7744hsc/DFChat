@@ -9,7 +9,6 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores.base import VectorStoreRetriever
 from typing import List
 from models import Query
-from database import DialogRecord
 from config import (
     api_key,
     api_url,
@@ -61,9 +60,8 @@ class MyAgent():
     
 
 class QAChain():
-    def __init__(self, chat_history: List[Query], dialog_id : str) -> None:
-        dialog = DialogRecord.get_record_by_id(int(dialog_id))
-        path = dialog.file_path
+    def __init__(self, chat_history: List[Query], file_path : str) -> None:
+        path = file_path
         loaders = [
             PyPDFDirectoryLoader(path=path),
             DirectoryLoader(path=path, loader_cls=TextLoader, loader_kwargs={"encoding":"utf-8"}, glob="**/*.txt"),
