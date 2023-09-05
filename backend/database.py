@@ -96,6 +96,17 @@ class DialogRecord(Base):
             raise Exception("Session not found")
         session.close()
         return True
+    
+    @staticmethod
+    def delete_by_user_id(user_id: int):
+        session = SessionLocal()
+        session_objs = session.query(DialogRecord).filter(DialogRecord.user_id == user_id).all()
+        if session_objs:
+            for session_obj in session_objs:
+                session.delete(session_obj)
+            session.commit()
+        session.close()
+        return True
 
 
 # 创建数据库表

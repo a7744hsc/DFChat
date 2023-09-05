@@ -4,9 +4,8 @@ import logging
 from typing import Any, Dict, Generator, List
 from fastapi import APIRouter, Depends, HTTPException
 import openai
-from models import InputData
+from models import ChatInput
 from sse_starlette.sse import EventSourceResponse
-from config import completion_engine_gpt4, completion_engine_gpt35
 from utils.security import get_current_user
 from database import DialogRecord,User
 
@@ -25,7 +24,7 @@ async def get_dialog_record_by_id(dialog_id: int,user: Dict[str, Any] = Depends(
     return dialog_record
 
 
-@dialog_record_router.get("/list")
+@dialog_record_router.get("")
 # create a api to retrive dialog record by user
 async def get_dialog_record_by_user(user: Dict[str, Any] = Depends(get_current_user)):
     dialog_records = DialogRecord.get_record_by_username(user['sub'])
@@ -43,4 +42,10 @@ async def delete_dialog_record_by_id(dialog_id: int,user: Dict[str, Any] = Depen
     if dialog_record.user.username != user['sub']:
         raise HTTPException(status_code=403, detail="你没有权限删除该对话")
     DialogRecord.delete_by_id(dialog_id)
+    return "删除成功"
+
+@dialog_record_router.delete("")
+# create a api to delete dialog record by user
+async def delete_dialog_record_by_user(user: Dict[str, Any] = Depends(get_current_user)):
+    DialogRecord.delete_by_user_id(user['sub'])
     return "删除成功"

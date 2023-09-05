@@ -21,6 +21,10 @@ class UserInfoResponse(BaseModel):
     username: str
     email: str
 
+class UserRegisterRequest(UserLoginRequest):
+    invitation_code: str
+    email: str
+
 def create_access_token(data: dict, expires_delta: int):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=expires_delta)
@@ -46,4 +50,15 @@ async def get_user_info(username: str):
         return UserInfoResponse(username=user.username, email=user.email)
     else:
         raise HTTPException(status_code=404, detail="用户不存在")
+    
+# 用户注册API
+@user_router.post("/register")
+async def register(user_register_request: UserRegisterRequest):
+    if user_register_request.invitation_code != "huha":
+        raise HTTPException(status_code=403, detail="邀请码错误")
+    user = User.get_user_by_user_name(user_register_request.username)
+    if user:
+        raise HTTPException(status_code=403, detail="用户名已存在")
+    user = User.create_user(user_register_request.username, user_register_request.password, user_register_request.email)
+    return "注册成功"
 
