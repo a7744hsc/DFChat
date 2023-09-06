@@ -20,10 +20,10 @@ async def process_data(input_data: ChatInput, user: Dict[str, Any] = Depends(get
     try:
         logger.debug("input_data: %s", input_data)
         if input_data.dialog_id:
-            dialog_record = DialogRecord.get_record_by_id(int(input_data.dialogId))
+            dialog_record = DialogRecord.get_record_by_id(int(input_data.dialog_id))
             assert dialog_record is not None,"对话记录不存在"
             assert dialog_record.user.username == user['sub'],"你没有权限查看该对话"
-            DialogRecord.update_record(int(input_data.dialogId),
+            DialogRecord.update_record(int(input_data.dialog_id),
                                        pickle.dumps(input_data.chat_history,protocol=pickle.HIGHEST_PROTOCOL))
         else:
             user = User.get_user_by_user_name(user['sub'])

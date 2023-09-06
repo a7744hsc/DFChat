@@ -1,11 +1,10 @@
 
 import json
 import logging
+import pickle
 from typing import Any, Dict, Generator, List
 from fastapi import APIRouter, Depends, HTTPException
-import openai
-from models import ChatInput
-from sse_starlette.sse import EventSourceResponse
+from models import ChatInput,ChatItem
 from utils.security import get_current_user
 from database import DialogRecord,User
 
@@ -48,4 +47,19 @@ async def delete_dialog_record_by_id(dialog_id: int,user: Dict[str, Any] = Depen
 # create a api to delete dialog record by user
 async def delete_dialog_record_by_user(user: Dict[str, Any] = Depends(get_current_user)):
     DialogRecord.delete_by_user_id(user['sub'])
+    return "删除成功"
+
+@dialog_record_router.delete("/id/{dialog_id}/sequence/{message_sequence}")
+async def delete_dialog_record_by_id_and_message_sequence(dialog_id: int,message_sequence: int,user: Dict[str, Any] = Depends(get_current_user)):
+    """
+        delete chat message in dialog with sequence greater or equal to message_sequence
+    """
+    dialog_record = DialogRecord.get_record_by_id(dialog_id)
+    if not dialog_record:
+        raise HTTPException(status_code=404, detail="对话记录不存在")
+    if dialog_record.user.username != user['sub']:
+        raise HTTPException(status_code=403, detail="你没有权限删除该对话")
+    chat_history :List[ChatItem] = pickle.loads(dialog_record.dialog_content)
+    chat_history = [item for item in chat_history if item.sequence < message_sequence]
+    DialogRecord.update_record(dialog_id,pickle.dumps(chat_history,protocol=pickle.HIGHEST_PROTOCOL))
     return "删除成功"

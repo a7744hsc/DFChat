@@ -13,26 +13,57 @@
           v-for="message in messages"
           :key="message.sequence"
         >
-          <q-chat-message
+          <div
             v-if="message.sent_by_user"
-            :sent="message.sent_by_user"
-            style="max-width: 90%"
-            class="float-right text-xl"
+            style="max-width: 95%"
+            class="user-content float-right"
           >
-            <div style="white-space: pre-wrap">
-              {{ message.content }}
+            <div class="col-auto float-left q-mr-xs">
+              <q-btn
+                round
+                dense
+                color="primary"
+                size="xs"
+                icon="delete"
+                class="block"
+                @click="deleteMessage(message.sequence)"
+              >
+                <q-tooltip> Delete this message and all others below</q-tooltip>
+              </q-btn>
+              <q-btn
+                round
+                dense
+                color="primary"
+                size="xs"
+                icon="replay"
+                class="block"
+                @click="resendMessage(message.sequence)"
+              >
+                <q-tooltip>
+                  Resend this message, all message below will be lost
+                </q-tooltip>
+              </q-btn>
             </div>
-          </q-chat-message>
-          <q-chat-message
-            v-else
-            :sent="message.sent_by_user"
-            style="max-width: 90%"
-            class="float-left"
-          >
-            <!-- show markdown if content not empty,else show spinner -->
-            <q-spinner-dots v-if="message.content === ''" size="2rem" />
-            <q-markdown v-else :src="message.content" />
-          </q-chat-message>
+            <q-chat-message
+              :sent="message.sent_by_user"
+              class="col-auto float-right text-xl"
+            >
+              <div style="white-space: pre-wrap">
+                {{ message.content }}
+              </div>
+            </q-chat-message>
+          </div>
+          <div v-else class="bot-content">
+            <q-chat-message
+              :sent="message.sent_by_user"
+              style="max-width: 90%"
+              class="float-left"
+            >
+              <!-- show markdown if content not empty,else show spinner -->
+              <q-spinner-dots v-if="message.content === ''" size="2rem" />
+              <q-markdown v-else :src="message.content" />
+            </q-chat-message>
+          </div>
           <!-- This is used to avoid outter div collapse -->
           <div style="clear: both"></div>
         </div>
@@ -79,19 +110,18 @@ enum MessageStatus {
   Pending,
   Error,
 }
+type Message = {
+  sequence: number;
+  sent_by_user: boolean;
+  content: string;
+  status: MessageStatus;
+};
 
 export default defineComponent({
   name: 'ChatPage',
   setup() {
     const $router = useRouter();
     const $q = useQuasar();
-    type Message = {
-      sequence: number;
-      sent_by_user: boolean;
-      content: string;
-      status: MessageStatus;
-    };
-
     const messages: Ref<Message[]> = ref([]);
     const userInput = ref('');
     const dialogId = ref<number | null>(null);
@@ -114,16 +144,14 @@ export default defineComponent({
       },
       { deep: true }
     );
-    function sendMessage(messagesList: Ref<Message[]>, userInput: Ref<string>) {
+    function sendMessage(messagesList: Ref<Message[]>, inputValue: string) {
       let message_seq = messagesList.value.length + 1;
-      let inputValue = userInput.value;
       messagesList.value.push({
         sequence: message_seq,
         sent_by_user: true,
         content: inputValue,
         status: MessageStatus.Ok,
       });
-      userInput.value = '';
       message_seq += 1;
       const botMessage = {
         sequence: message_seq,
@@ -132,7 +160,10 @@ export default defineComponent({
         status: MessageStatus.Pending,
       };
       messagesList.value.push(botMessage);
-
+      console.log('Sending llm request:', {
+        dialog_id: dialogId.value,
+        prompt: inputValue,
+      });
       api
         .post('/api/gpt/standard', {
           dialog_id: dialogId.value,
@@ -141,6 +172,7 @@ export default defineComponent({
         })
         .then((response) => {
           console.log('Receiving llm response:', response);
+          dialogId.value = response.data.dialog_id;
           let chatHistory = response.data.chat_history as Message[];
           messagesList.value.pop();
           let lastMessage = chatHistory.at(-1);
@@ -174,7 +206,8 @@ export default defineComponent({
         input.selectionStart = input.selectionEnd = start + 1;
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        sendMessage(messages, userInput);
+        sendMessage(messages, userInput.value);
+        userInput.value = '';
       }
     }
     return {
@@ -183,20 +216,39 @@ export default defineComponent({
       userInput: userInput,
       keypressHandler,
       sendMessage() {
-        sendMessage(messages, userInput);
+        sendMessage(messages, userInput.value);
+        userInput.value = '';
+      },
+      deleteMessage(sequence: number) {
+        messages.value = messages.value.filter((message) => {
+          return message.sequence < sequence;
+        });
+        let requestUrl =
+          '/api/dialog/id/' +
+          dialogId.value?.toString() +
+          '/sequence/' +
+          sequence.toString();
+        api.delete(requestUrl).catch((error) => {
+          console.log(error);
+          $q.notify({
+            color: 'negative',
+            message: '删除失败，前后端数据可能不一致，请刷新页面',
+          });
+        });
+      },
+      resendMessage(sequence: number) {
+        let messageToSent = messages.value.at(sequence - 1) as Message;
+        messages.value = messages.value.filter((message) => {
+          return message.sequence < sequence;
+        });
+        sendMessage(messages, messageToSent.content);
+      },
+      newChat() {
+        messages.value = [];
+        dialogId.value = null;
       },
     };
   },
 });
 </script>
-<style scoped>
-.float-right {
-  float: right;
-  clear: both;
-}
-
-.float-left {
-  float: left;
-  clear: both;
-}
-</style>
+<style lang="scss" scoped></style>
