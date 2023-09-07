@@ -21,12 +21,23 @@
           icon="add"
           @click="newChat"
         />
-        <q-btn flat dense round icon="settings" aria-label="Settings" />
+        <q-btn
+          flat
+          dense
+          icon="delete"
+          aria-label="delete"
+          label="Delete Chat"
+          @click="deleteCurrentChat"
+        />
       </q-toolbar>
     </q-header>
 
     <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
-      <ChatHistoryList />
+      <ChatHistoryList
+        @sendChat="changeChatContent"
+        @chatHistoryChanged="updateHistoryList"
+        :chats="chatHistoryList"
+      />
     </q-drawer>
 
     <q-page-container class="absolute-full">
@@ -169,11 +180,20 @@ export default defineComponent({
     const userInput = ref('');
     const dialogId = ref<number | null>(null);
     const chatWindow = ref<HTMLDivElement | null>(null);
-    onMounted(() => {
+    const chatHistoryList = ref<
+      { dialog_id: number; chat_history: Message[] }[]
+    >([]);
+    onMounted(async () => {
       if (localStorage.getItem('token') === null) {
         $router.push('/login');
       }
+      chatHistoryList.value = (await api.get('/api/dialog')).data;
     });
+    function updateHistoryList() {
+      api.get('/api/dialog').then((response) => {
+        chatHistoryList.value = response.data;
+      });
+    }
     api.defaults.headers.common.Authorization = `Bearer ${localStorage.getItem(
       'token'
     )}`;
@@ -280,27 +300,30 @@ export default defineComponent({
             }
           )
           .then(() => {
-            //save dialog
             let lastMessage = messagesList.value.at(-1);
             if (lastMessage) {
               lastMessage.status = MessageStatus.Ok;
             }
-            api
-              .post('/api/dialog', {
-                dialog_id: dialogId.value,
-                chat_history: messagesList.value,
-              })
-              .then((response) => {
-                console.log('save dialog response:', response);
-                dialogId.value = response.data.dialog_id;
-              })
-              .catch((error) => {
-                console.log(error);
-                $q.notify({
-                  color: 'negative',
-                  message: '保存对话失败',
+            //save dialog for new chat
+            if (dialogId.value === null) {
+              api
+                .post('/api/dialog', {
+                  dialog_id: dialogId.value,
+                  chat_history: messagesList.value,
+                })
+                .then((response) => {
+                  console.log('save dialog response:', response);
+                  dialogId.value = response.data.dialog_id;
+                })
+                .catch((error) => {
+                  console.log(error);
+                  $q.notify({
+                    color: 'negative',
+                    message: '保存对话失败',
+                  });
                 });
-              });
+            }
+            updateHistoryList();
           })
           .catch((error) => {
             botMessage.status = MessageStatus.Error;
@@ -363,6 +386,7 @@ export default defineComponent({
       MessageStatus,
       chatWindow,
       userInput: userInput,
+      chatHistoryList,
       keypressHandler,
       sendMessage() {
         sendMessage(messages, userInput.value);
@@ -396,12 +420,42 @@ export default defineComponent({
         messages.value = [];
         dialogId.value = null;
       },
+      changeChatContent(chat: { dialog_id: number; chat_history: Message[] }) {
+        messages.value = chat.chat_history;
+        dialogId.value = chat.dialog_id;
+      },
+      updateHistoryList,
       leftDrawerOpen,
       toggleLeftDrawer() {
         leftDrawerOpen.value = !leftDrawerOpen.value;
+      },
+      deleteCurrentChat() {
+        if (dialogId.value === null) {
+          messages.value = [];
+        }
+        api
+          .delete('/api/dialog/id/' + dialogId.value?.toString())
+          .then(() => {
+            $q.notify({
+              color: 'positive',
+              message: '删除对话成功',
+            });
+            dialogId.value = null;
+            messages.value = [];
+            updateHistoryList();
+          })
+          .catch((error) => {
+            console.log(error);
+            $q.notify({
+              color: 'negative',
+              message: '删除对话失败',
+            });
+          });
       },
     };
   },
   components: { ChatHistoryList },
 });
+export { MessageStatus };
+export type { Message };
 </script>

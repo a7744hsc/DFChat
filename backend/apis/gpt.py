@@ -4,7 +4,7 @@ from typing import Any, Dict, Generator, List
 from fastapi import APIRouter, Depends
 import openai
 from models import MessageStatus
-from models import ChatInput,ChatItem
+from models import DialogDTO,ChatItem
 from sse_starlette.sse import EventSourceResponse
 from config import api_config as gpt_api
 from utils.security import get_current_user
@@ -16,19 +16,19 @@ gpt4_api = APIRouter()
 logger = logging.getLogger(__name__)
 
 @gpt4_api.post("/standard")
-async def process_data(input_data: ChatInput, user: Dict[str, Any] = Depends(get_current_user)):
+async def process_data(input_data: DialogDTO, user: Dict[str, Any] = Depends(get_current_user)):
     try:
         logger.debug("input_data: %s", input_data)
         if input_data.dialog_id:
             dialog_record = DialogRecord.get_record_by_id(int(input_data.dialog_id))
             assert dialog_record is not None,"对话记录不存在"
             assert dialog_record.user.username == user['sub'],"你没有权限查看该对话"
-            DialogRecord.update_record(int(input_data.dialog_id),
+            DialogRecord.update_record(input_data.dialog_id,
                                        pickle.dumps(input_data.chat_history,protocol=pickle.HIGHEST_PROTOCOL))
         else:
             user = User.get_user_by_user_name(user['sub'])
             dialog_record = DialogRecord.create_record(user.id,pickle.dumps(input_data.chat_history,protocol=pickle.HIGHEST_PROTOCOL))
-            input_data.dialog_id = str(dialog_record.id)
+            input_data.dialog_id = dialog_record.id
 
         requst_messages = _generate_gpt_request(input_data.chat_history)
 
@@ -39,9 +39,9 @@ async def process_data(input_data: ChatInput, user: Dict[str, Any] = Depends(get
             )
         logger.debug("response: %s", response)
         logger.info(f"Get response with Id:{response['id']},model:{response['model']},usage(comp,prompt,total):{list(response['usage'].values())}") # type: ignore
-        # input_data.chat_history.append(ChatInput.ChatHistoryItem(content=response['choices'][0]['text'],sent_by_user=False)) # type: ignore
         input_data.chat_history[-1].status = MessageStatus.Ok
         input_data.chat_history[-1].content =response['choices'][0]['message']['content'] 
+        DialogRecord.update_record(input_data.dialog_id,pickle.dumps(input_data.chat_history,protocol=pickle.HIGHEST_PROTOCOL))
     except Exception as e:
         logger.exception("openai服务请求出错")
         input_data.chat_history[-1].status = MessageStatus.Error
@@ -60,7 +60,7 @@ def _generate_gpt_request(chat_content: List[ChatItem]):
 
 
 
-def gpt4_streamer(input_data: ChatInput,user_name:str) -> Generator[str, Any, None]:
+def gpt4_streamer(input_data: DialogDTO,user_name:str) -> Generator[str, Any, None]:
     request_messages = _generate_gpt_request(input_data.chat_history)
 
     try:
@@ -75,16 +75,18 @@ def gpt4_streamer(input_data: ChatInput,user_name:str) -> Generator[str, Any, No
                         whole_response += content
                         yield f"{content}"
         logger.info("The whole response is %s", whole_response)
-        request_messages.append({"role": "assistant", "content": whole_response})
+
         if input_data.dialog_id:
-            DialogRecord.update_record(int(input_data.dialog_id),pickle.dumps(request_messages,protocol=pickle.HIGHEST_PROTOCOL))
+            input_data.chat_history[-1].content = whole_response
+            input_data.chat_history[-1].status = MessageStatus.Ok
+            DialogRecord.update_record(input_data.dialog_id,pickle.dumps(input_data.chat_history,protocol=pickle.HIGHEST_PROTOCOL))
         # new dialog will be saved by frontend
     except Exception as e:
         logger.exception("openai服务请求出错")
         yield "服务器太忙，请重试"
 
 @ gpt4_api.post("/sse")
-async def process_data_sse(input_data: ChatInput, user: Dict[str, Any] = Depends(get_current_user)):
+async def process_data_sse(input_data: DialogDTO, user: Dict[str, Any] = Depends(get_current_user)):
     # use Server-Sent Events to send data to client
     logger.debug("input_data: %s", input_data)
     return EventSourceResponse(gpt4_streamer(input_data,user['sub']))

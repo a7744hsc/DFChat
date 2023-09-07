@@ -14,6 +14,6 @@ class ChatItem(BaseModel):
     content: str
     status: MessageStatus
 
-class ChatInput(BaseModel):
+class DialogDTO(BaseModel):
     dialog_id: int|None
     chat_history: List[ChatItem]

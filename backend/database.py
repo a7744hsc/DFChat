@@ -58,6 +58,8 @@ class DialogRecord(Base):
         session = SessionLocal()
         user = session.query(User).filter(User.username == username).options(subqueryload(User.dialogs)).first()
         session.close()
+        # reverse dialog sequence，latest dialog is at the first
+        user.dialogs.reverse()
         return user.dialogs
     
     @staticmethod
@@ -106,7 +108,7 @@ class DialogRecord(Base):
                 session.delete(session_obj)
             session.commit()
         session.close()
-        return True
+        return len(session_objs)
 
 
 # 创建数据库表

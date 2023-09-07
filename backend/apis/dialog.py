@@ -4,7 +4,7 @@ import logging
 import pickle
 from typing import Any, Dict, Generator, List
 from fastapi import APIRouter, Depends, HTTPException
-from models import ChatInput,ChatItem
+from models import DialogDTO,ChatItem
 from utils.security import get_current_user
 from database import DialogRecord,User
 
@@ -27,17 +27,20 @@ async def get_dialog_record_by_id(dialog_id: int,user: Dict[str, Any] = Depends(
 # create a api to retrive dialog record by user
 async def get_dialog_record_by_user(user: Dict[str, Any] = Depends(get_current_user)):
     dialog_records = DialogRecord.get_record_by_username(user['sub'])
-    record_list = []
+    record_list:DialogDTO = []
     for dialog_record in dialog_records:
-        record_list.append({"dialog_id":dialog_record.id,"dialog_content":json.loads(dialog_record.dialog_content)})
+        print("====")
+        print(dialog_record.id)
+        print(pickle.loads(dialog_record.dialog_content))
+        record_list.append(DialogDTO(dialog_id=dialog_record.id,chat_history=pickle.loads(dialog_record.dialog_content)))
     return record_list
 
 @dialog_record_router.post("")
 # create a api to create dialog record by user
-async def create_dialog_record_by_user(input_data: ChatInput,user: Dict[str, Any] = Depends(get_current_user)):
+async def create_dialog_record_by_user(input_data: DialogDTO,user: Dict[str, Any] = Depends(get_current_user)):
     user = User.get_user_by_user_name(user['sub'])
     dialog_record = DialogRecord.create_record(user.id,pickle.dumps(input_data.chat_history,protocol=pickle.HIGHEST_PROTOCOL))
-    input_data.dialog_id = str(dialog_record.id)
+    input_data.dialog_id = dialog_record.id
     return input_data
 
 @dialog_record_router.delete("/id/{dialog_id}")
@@ -54,8 +57,9 @@ async def delete_dialog_record_by_id(dialog_id: int,user: Dict[str, Any] = Depen
 @dialog_record_router.delete("")
 # create a api to delete dialog record by user
 async def delete_dialog_record_by_user(user: Dict[str, Any] = Depends(get_current_user)):
-    DialogRecord.delete_by_user_id(user['sub'])
-    return "删除成功"
+    user_obj = User.get_user_by_user_name(user['sub'])
+    count = DialogRecord.delete_by_user_id(user_obj.id)
+    return f"成功删除{count}条记录"
 
 @dialog_record_router.delete("/id/{dialog_id}/sequence/{message_sequence}")
 async def delete_dialog_record_by_id_and_message_sequence(dialog_id: int,message_sequence: int,user: Dict[str, Any] = Depends(get_current_user)):
