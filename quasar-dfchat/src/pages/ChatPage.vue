@@ -59,9 +59,16 @@
               style="max-width: 90%"
               class="float-left"
             >
-              <!-- show markdown if content not empty,else show spinner -->
-              <q-spinner-dots v-if="message.content === ''" size="2rem" />
-              <q-markdown v-else :src="message.content" />
+              <div>
+                <q-markdown
+                  v-if="message.content !== ''"
+                  :src="message.content"
+                />
+                <q-spinner-dots
+                  v-if="message.status === MessageStatus.Pending"
+                  size="2rem"
+                />
+              </div>
             </q-chat-message>
           </div>
           <!-- This is used to avoid outter div collapse -->
@@ -144,7 +151,15 @@ export default defineComponent({
       },
       { deep: true }
     );
-    function sendMessage(messagesList: Ref<Message[]>, inputValue: string) {
+    function sendMessage(
+      messagesList: Ref<Message[]>,
+      inputValue: string,
+      sse = true
+    ) {
+      if (inputValue.trim() === '') {
+        console.log('empty message,ignore');
+        return;
+      }
       let message_seq = messagesList.value.length + 1;
       messagesList.value.push({
         sequence: message_seq,
@@ -164,33 +179,130 @@ export default defineComponent({
         dialog_id: dialogId.value,
         prompt: inputValue,
       });
-      api
-        .post('/api/gpt/standard', {
-          dialog_id: dialogId.value,
-          chat_history: messagesList.value,
-          prompt: inputValue,
-        })
-        .then((response) => {
-          console.log('Receiving llm response:', response);
-          dialogId.value = response.data.dialog_id;
-          let chatHistory = response.data.chat_history as Message[];
-          messagesList.value.pop();
-          let lastMessage = chatHistory.at(-1);
-          if (lastMessage !== undefined) {
-            messagesList.value.push(lastMessage);
-          } else {
-            console.error('Empty chat history received');
-          }
-        })
-        .catch((error) => {
-          botMessage.status = MessageStatus.Error;
-          botMessage.content = error.response.data.tostring();
-          console.log(error);
-          $q.notify({
-            color: 'negative',
-            message: error.response.data.tostring(),
+      if (sse) {
+        api
+          .post(
+            'api/gpt/sse',
+            {
+              dialog_id: dialogId.value,
+              chat_history: messagesList.value,
+            },
+            {
+              headers: {
+                // 'Content-Type': 'text/event-stream',
+              },
+              async onDownloadProgress(progressEvent) {
+                let resText = progressEvent.event.target.responseText;
+                console.log('==========');
+                console.log(resText);
+
+                let lines = resText.substr(6).split('\r\ndata: '); // 去掉前面的"data: "，然后按照"\r\ndata: "分割
+                let m = '';
+                let ignoreNextLine = false;
+                for (let i = 0; i < lines.length; i++) {
+                  let line_str = lines[i];
+
+                  if (ignoreNextLine) {
+                    if (!line_str.endsWith('\r\nevent: ping')) {
+                      ignoreNextLine = false;
+                    }
+                    continue;
+                  }
+
+                  if (line_str.startsWith(' ping')) {
+                    // 处理起始行的"event: ping",但是前面有一个substr(6),所以
+                    ignoreNextLine = true;
+                    continue;
+                  }
+
+                  if (line_str.endsWith('\r\nevent: ping')) {
+                    //这是为了解决返回中包含ping的event
+                    line_str = line_str.substr(0, line_str.length - 13);
+                    ignoreNextLine = true;
+                  }
+
+                  if (line_str.length >= 2 && line_str.substr(-2) == '\r\n') {
+                    // openai的返回有时会包含一组\r\n，有时会包含两组\r\n，这里会去除掉第二组\r\n
+                    line_str = line_str.substr(0, line_str.length - 2);
+                  }
+                  if (line_str != '') {
+                    m += line_str;
+                  } else {
+                    m += '\n'; // 对于内容为空的行，应该为原文加一个回车符号
+                  }
+                }
+                let lastMessage = messagesList.value.at(-1);
+                if (lastMessage) {
+                  lastMessage.content = m;
+                }
+
+                if (chatWindow.value !== null) {
+                  await nextTick();
+                  chatWindow.value.scrollTop = chatWindow.value.scrollHeight;
+                }
+              },
+            }
+          )
+          .then(() => {
+            //save dialog
+            let lastMessage = messagesList.value.at(-1);
+            if (lastMessage) {
+              lastMessage.status = MessageStatus.Ok;
+            }
+            api
+              .post('/api/dialog', {
+                dialog_id: dialogId.value,
+                chat_history: messagesList.value,
+              })
+              .then((response) => {
+                console.log('save dialog response:', response);
+                dialogId.value = response.data.dialog_id;
+              })
+              .catch((error) => {
+                console.log(error);
+                $q.notify({
+                  color: 'negative',
+                  message: '保存对话失败',
+                });
+              });
+          })
+          .catch((error) => {
+            botMessage.status = MessageStatus.Error;
+            botMessage.content = error.response.data.tostring();
+            console.log(error);
+            $q.notify({
+              color: 'negative',
+              message: error.response.data.tostring(),
+            });
           });
-        });
+      } else {
+        api
+          .post('/api/gpt/standard', {
+            dialog_id: dialogId.value,
+            chat_history: messagesList.value,
+          })
+          .then((response) => {
+            console.log('Receiving llm response:', response);
+            dialogId.value = response.data.dialog_id;
+            let chatHistory = response.data.chat_history as Message[];
+            messagesList.value.pop();
+            let lastMessage = chatHistory.at(-1);
+            if (lastMessage !== undefined) {
+              messagesList.value.push(lastMessage);
+            } else {
+              console.error('Empty chat history received');
+            }
+          })
+          .catch((error) => {
+            botMessage.status = MessageStatus.Error;
+            botMessage.content = error.response.data.tostring();
+            console.log(error);
+            $q.notify({
+              color: 'negative',
+              message: error.response.data.tostring(),
+            });
+          });
+      }
     }
     async function keypressHandler(e: KeyboardEvent) {
       if (e.key === 'Enter' && e.shiftKey) {
@@ -212,6 +324,7 @@ export default defineComponent({
     }
     return {
       messages,
+      MessageStatus,
       chatWindow,
       userInput: userInput,
       keypressHandler,

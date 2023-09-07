@@ -16,5 +16,4 @@ class ChatItem(BaseModel):
 
 class ChatInput(BaseModel):
     dialog_id: int|None
-    prompt: str
     chat_history: List[ChatItem]

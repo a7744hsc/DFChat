@@ -32,6 +32,14 @@ async def get_dialog_record_by_user(user: Dict[str, Any] = Depends(get_current_u
         record_list.append({"dialog_id":dialog_record.id,"dialog_content":json.loads(dialog_record.dialog_content)})
     return record_list
 
+@dialog_record_router.post("")
+# create a api to create dialog record by user
+async def create_dialog_record_by_user(input_data: ChatInput,user: Dict[str, Any] = Depends(get_current_user)):
+    user = User.get_user_by_user_name(user['sub'])
+    dialog_record = DialogRecord.create_record(user.id,pickle.dumps(input_data.chat_history,protocol=pickle.HIGHEST_PROTOCOL))
+    input_data.dialog_id = str(dialog_record.id)
+    return input_data
+
 @dialog_record_router.delete("/id/{dialog_id}")
 # create a api to delete dialog record by id
 async def delete_dialog_record_by_id(dialog_id: int,user: Dict[str, Any] = Depends(get_current_user)):

@@ -61,9 +61,7 @@ def _generate_gpt_request(chat_content: List[ChatItem]):
 
 
 def gpt4_streamer(input_data: ChatInput,user_name:str) -> Generator[str, Any, None]:
-    request_messages = []
-    for d in input_data.query:
-        request_messages.append({"role": d.role, "content": d.content})
+    request_messages = _generate_gpt_request(input_data.chat_history)
 
     try:
         whole_response : str = ""
@@ -78,12 +76,9 @@ def gpt4_streamer(input_data: ChatInput,user_name:str) -> Generator[str, Any, No
                         yield f"{content}"
         logger.info("The whole response is %s", whole_response)
         request_messages.append({"role": "assistant", "content": whole_response})
-        if input_data.dialogId:
-            DialogRecord.update_record(int(input_data.dialogId),json.dumps(request_messages,ensure_ascii=False))
-        else:
-            user = User.get_user_by_user_name(user_name)
-            dialog_record = DialogRecord.create_record(user.id,json.dumps(request_messages,ensure_ascii=False))
-            yield f"dialogIdComplexSubfix82jjivmpq90doqjwdoiwq:{str(dialog_record.id)}"
+        if input_data.dialog_id:
+            DialogRecord.update_record(int(input_data.dialog_id),pickle.dumps(request_messages,protocol=pickle.HIGHEST_PROTOCOL))
+        # new dialog will be saved by frontend
     except Exception as e:
         logger.exception("openai服务请求出错")
         yield "服务器太忙，请重试"

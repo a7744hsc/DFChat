@@ -12,6 +12,7 @@
         />
 
         <q-toolbar-title> DF Chat 0.2</q-toolbar-title>
+        <q-btn flat dense round icon="add" aria-label="New dialog" />
         <q-btn flat dense round icon="settings" aria-label="Settings" />
       </q-toolbar>
     </q-header>
