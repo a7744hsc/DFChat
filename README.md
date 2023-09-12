@@ -6,9 +6,13 @@
 
 ## 项目介绍
 
-**前端项目：vue-chat-gui**
+**前端项目：vue-chat-gui（已弃用，请使用基于quasar的前端）**
 
 这是一个基于 Vue.js 的类 ChatGPT 聊天程序，用户可以通过这个应用程序向 chatGPT 提问。
+
+**前端项目2：quasar-dfchat**
+
+新版本的前端，界面更加友好，功能更加完善。
 
 **后端项目：backend (FastAPI)**
 
@@ -36,7 +40,7 @@
 1. 进入前端项目目录：
 
    ```
-   cd vue-chat-gui
+   cd quasar-dfchat
    ```
 
 2. 安装依赖：
@@ -48,7 +52,7 @@
 3. 运行项目：
 
    ```
-   npm run dev
+   quasar dev
    ```
 
 ### 启动后端项目
@@ -108,6 +112,7 @@
   - [x] 聊天记录功能
   - [x] 新建聊天
   - [x] 支持 SSE
+  - [ ] 支持代码复制
 
 ## 贡献
 
