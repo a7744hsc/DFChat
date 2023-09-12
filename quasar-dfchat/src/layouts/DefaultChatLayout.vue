@@ -107,6 +107,7 @@
                     <q-markdown
                       v-if="message.content !== ''"
                       :src="message.content"
+                      no-line-numbers
                     />
                     <q-spinner-dots
                       v-if="message.status === MessageStatus.Pending"
