@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir uvicorn[standard]
 COPY backend/ ./
 
 # Copy the Vue.js app from the previous stage
-COPY --from=builder /app/dist/ /backend/static/
+COPY --from=builder /app/dist/spa /backend/static/
 
 EXPOSE 8000
 
