@@ -60,7 +60,7 @@
                 style="max-width: 95%"
                 class="user-content float-right"
               >
-                <div class="col-auto float-left q-mr-xs">
+                <div class="button-group col-auto float-left q-mr-xs">
                   <q-btn
                     round
                     dense
@@ -91,6 +91,7 @@
                 <q-chat-message
                   :sent="message.sent_by_user"
                   class="col-auto float-right text-xl"
+                  style="max-width: calc(100% - 24px);"
                 >
                   <div style="white-space: pre-wrap">
                     {{ message.content }}
