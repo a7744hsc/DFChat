@@ -35,6 +35,25 @@
    ```
 4. 打开浏览器，输入 http://localhost
 
+### 将服务部署到公网（https）
+
+要将服务安全部署到公网需要使用https，有获取https证书通常需要一个域名，这里以let‘s encrypt + docker compose 实现一个简单的前端部署。详细教程请参考[DigitalOcean教程](https://www.digitalocean.com/community/tutorials/how-to-secure-a-containerized-node-js-application-with-nginx-let-s-encrypt-and-docker-compose)
+
+1. 申请域名并创建服务器，并将域名解析到服务器ip
+2. 在服务器中安装docker和docker-compose
+3. 在https-docker-compose.yml中修改域名和邮箱, 在nginxconf/nginx.conf中修改域名
+4. 创建dhparam.pem文件
+   ```
+   mkdir dhparam
+   sudo openssl dhparam -out dhparam/dhparam-2048.pem 2048
+   ```
+4. 在根目录下运行docker-compose up -d 启动服务
+5. 使用crontab定时更新证书（可能需要使用root账户运行定时任务）
+   ```
+   sudo crontab -e
+   0 12 * * * /home/azureuser/dfchat/deploy/cert-renew.sh >> /home/azureuser/dfchat/deploy/cert_renew_cron.log 2>&1
+   ```
+
 ### 启动前端项目
 
 1. 进入前端项目目录：
