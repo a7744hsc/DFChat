@@ -195,9 +195,7 @@ export default defineComponent({
         chatHistoryList.value = response.data;
       });
     }
-    api.defaults.headers.common.Authorization = `Bearer ${localStorage.getItem(
-      'token'
-    )}`;
+
     watch(
       messages,
       async () => {

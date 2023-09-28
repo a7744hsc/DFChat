@@ -16,6 +16,40 @@ declare module '@vue/runtime-core' {
 // for each client)
 const api = axios.create({ baseURL: '' });
 
+
+api.interceptors.request.use(
+  (config) => {
+    if (config.url?.includes('login')) {
+      return config;
+    }
+    const token = localStorage.getItem('token') || '';
+    if(token === '') {
+      return Promise.reject('No token');
+    }
+    config.headers['Authorization'] = `Bearer ${token}`;
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// 响应拦截器
+
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.response === undefined || error.response.status === 401 || error.response.status === 403) {
+      localStorage.removeItem('token');
+      //refresh whole page
+      window.location.href = '#/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default boot(({ app }) => {
   // for use inside Vue files (Options API) through this.$axios and this.$api
 

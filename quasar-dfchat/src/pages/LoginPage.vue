@@ -61,6 +61,15 @@ export default defineComponent({
           $router.push('/');
         })
         .catch((error) => {
+          //check if error is an axios reject error
+          if (error.response === undefined) {
+            $q.notify({
+              color: 'negative',
+              message: error,
+            });
+            return;
+          }
+
           $q.notify({
             color: 'negative',
             message: error.response.data.detail,
