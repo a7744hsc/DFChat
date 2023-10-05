@@ -129,7 +129,7 @@
             bottom-slots
             v-model="userInput"
             counter
-            maxlength="2048"
+            maxlength="8192"
             :dense="true"
             type="textarea"
             :input-style="{ height: '100px' }"
